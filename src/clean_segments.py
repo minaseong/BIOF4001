@@ -29,7 +29,7 @@ Notes
 -----
 - S1/S2 are stored as *intervals* in the backend; this code uses the `start`
   timestamps as onsets.
-- The rules mirror the dissertation canonical run thresholds.
+- The rules mirror the thresholds used in the reported analysis run.
 """
 
 from __future__ import annotations
@@ -262,7 +262,7 @@ def find_clean_segments(payload: dict[str, Any], *, duration_s: float, cfg: Clea
 
     Notes
     -----
-    This implements the canonical dissertation logic:
+    This implements the clean-segment logic used for the reported analysis:
     - exclude poor/extremely_poor
     - require mostly-labeled cycles where each S1->S1 interval has exactly one S2
     - enforce duration and cycle thresholds

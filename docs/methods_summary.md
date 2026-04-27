@@ -1,4 +1,4 @@
-# Methods summary (dissertation-ready)
+# Methods summary
 
 This document summarizes the implemented PCG AF/SR pipeline at a level suitable for a Methods section.
 

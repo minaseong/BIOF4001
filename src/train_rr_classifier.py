@@ -58,8 +58,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from clean_segments import CleanSegmentConfig, find_clean_segments
-from rr_features import RRFeatureConfig, extract_rr_features_from_clean_segment, load_latest_annotation_payloads
+try:
+    from .clean_segments import CleanSegmentConfig, find_clean_segments
+except ImportError:  # pragma: no cover
+    from clean_segments import CleanSegmentConfig, find_clean_segments
+try:
+    from .rr_features import RRFeatureConfig, extract_rr_features_from_clean_segment, load_latest_annotation_payloads
+except ImportError:  # pragma: no cover
+    from rr_features import RRFeatureConfig, extract_rr_features_from_clean_segment, load_latest_annotation_payloads
 
 
 def extract_participant_id(filename: str) -> str:
