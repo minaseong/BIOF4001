@@ -84,7 +84,7 @@ bash scripts/run_rr_pipeline.sh
 - Aggregate metrics: `results/final_matched_metrics_table.csv`
 - Aggregate figures: see `figures/main/`
 
-## Limitations (for careful interpretation)
+## Limitations
 - The RR-feature PCG pipeline is **annotation-dependent** for clean-segment selection.
 - Coverage can be limited because RR features require sufficiently labeled clean segments.
 - Reported performance is internal (OOF) rather than an external prospective validation.
