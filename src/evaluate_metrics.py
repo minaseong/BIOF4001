@@ -4,8 +4,6 @@ Purpose
 -------
 Compute matched-cohort diagnostic performance and coverage metrics.
 
-Why this file exists
---------------------
 For AF screening, it is essential to report *both*:
 
 1) diagnostic performance when a method provides an AF/SR classification, and

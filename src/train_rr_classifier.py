@@ -5,8 +5,6 @@ Purpose
 Train the RR-feature RandomForest AF/SR classifier and produce out-of-fold (OOF)
 predictions.
 
-Why this file exists
---------------------
 The dissertation's main PCG model is a feature-based classifier built on
 RR-like intervals derived from S1 onset times in an annotated clean segment.
 This module provides the end-to-end training logic:

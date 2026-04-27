@@ -4,8 +4,6 @@ Purpose
 -------
 Standardize and preprocess raw smartphone PCG WAV recordings.
 
-Why this file exists
---------------------
 Smartphone-recorded PCG audio can vary in sampling rate, channel count, and
 amplitude scaling. For dissertation reproducibility, downstream feature
 extraction expects a **consistent** signal format.
@@ -31,7 +29,6 @@ Step 1: PCG standardization / preprocessing.
 
 Notes
 -----
-- Preprocessing is used for **standardization**, not as evidence of denoising.
 - No trimming/padding/silence-removal is applied; the full duration is retained.
 - Output filenames are normalized to match the project convention:
   `<participant_id>_<original_stem>.wav`, e.g. `4023_iData4023M.wav`.

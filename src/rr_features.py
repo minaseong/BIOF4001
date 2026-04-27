@@ -4,8 +4,6 @@ Purpose
 -------
 Extract RR-like intervals from S1 onset times and compute RR-variability features.
 
-Why this file exists
---------------------
 Atrial fibrillation (AF) is characterized by irregular ventricular response.
 When S1 onsets are reliably labeled in a clean segment, consecutive S1-to-S1
 intervals can be used as an RR-like series for feature-based AF/SR screening.

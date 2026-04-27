@@ -4,8 +4,6 @@ Purpose
 -------
 Implements the "clean segment" selection logic using S1/S2 and quality annotations.
 
-Why this file exists
---------------------
 The RR-feature AF/SR model requires analyzable intervals where heart cycles are
 consistently labeled (S1 and S2) and not interrupted by poor-quality regions.
 Recordings without qualifying clean segments are treated as *uninterpretable (UI)*
