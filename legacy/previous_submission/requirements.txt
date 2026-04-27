@@ -1,0 +1,8 @@
+pydicom
+neurokit2
+pandas
+numpy
+matplotlib
+scipy
+librosa
+tqdm
