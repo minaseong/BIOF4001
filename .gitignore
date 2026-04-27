@@ -1,0 +1,38 @@
+# raw/protected data
+data/raw/
+data/interim/
+data/processed/
+*.wav
+*.m4a
+*.mp3
+*.flac
+
+# clinical/private labels
+*device_labels*
+*Annotation*.csv
+*Participant*
+*patient*
+*clinical*
+*ECG*
+*label*
+
+# local outputs and caches
+logs/
+runs/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+
+# notebook execution artifacts
+notebooks/_executed/
+figures/main/regenerated/
+
+# credentials
+.env
+*.key
+*.pem
+
+# local machine paths/configs
+local_config*
+*.local.*

@@ -1,8 +1,8 @@
-pydicom
-neurokit2
-pandas
 numpy
-matplotlib
+pandas
 scipy
-librosa
-tqdm
+scikit-learn
+matplotlib
+seaborn
+joblib
+pyyaml
