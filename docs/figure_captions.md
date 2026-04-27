@@ -1,8 +1,5 @@
 # Figure captions
 
-## Figure 1. Cohort flow
-Participant flow for the matched PCG evaluation cohort. Counts reflect filtering to participants with PCG recordings and ECG12 AF/SR reference labels, followed by the subset with analyzable segments enabling an AF/SR classification.
-
 ## Figure 2. Coverage and AF/SR-classified performance
 Coverage (proportions of AF/SR-classified, OA, UI, and Missing) and diagnostic performance (sensitivity, specificity, accuracy) of PCG and comparator devices against ECG12 reference labels on the matched cohort. Diagnostic metrics are computed only among AF/SR-classified outputs.
 

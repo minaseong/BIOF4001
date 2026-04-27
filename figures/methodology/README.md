@@ -1,7 +1,7 @@
 # Methodology figures (privacy note)
 
-Methodology waveform figures (e.g., raw/preprocessed PCG traces and S1/S2 annotation examples) are **excluded** from the public repository because they are derived from **protected clinical PCG recordings**.
+Waveform methodology figures (e.g., raw/preprocessed PCG traces and S1/S2 annotation examples) are excluded from the public repository because they are derived from a **controlled-access clinical PCG dataset**.
 
-The submitted dissertation includes representative methodology examples generated from the protected dataset.
+Representative methodology examples are included only in the submitted thesis/dissertation.
 
-To regenerate these figures, you must have local access to the protected dataset and annotation exports.
+To reproduce those figures, you must have local access to the controlled-access dataset and the corresponding annotation exports.

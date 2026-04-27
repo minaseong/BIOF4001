@@ -41,7 +41,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from clean_segments import CleanSegmentConfig, onsets_in_interval, pick_longest_clean_interval
+try:
+    from .clean_segments import CleanSegmentConfig, onsets_in_interval, pick_longest_clean_interval
+except ImportError:  # pragma: no cover
+    from clean_segments import CleanSegmentConfig, onsets_in_interval, pick_longest_clean_interval
 
 
 def _as_list(x: Any) -> list[dict[str, Any]]:

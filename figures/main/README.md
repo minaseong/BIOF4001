@@ -1,8 +1,8 @@
-# Main figures
+# Aggregate reporting figures
 
-This folder includes **aggregate, non-participant-specific** dissertation figures:
-- Cohort flow (Figure 1)
-- Coverage and AF/SR-classified performance (Figure 2)
-- PCG confusion matrix and ROC (Figure 3)
+This folder includes **aggregate, non-participant-specific** reporting figures:
 
-Participant-level RR/tachogram example figures are **excluded** from the public repository for privacy reasons.
+- Figure 2: coverage and AF/SR-classified performance (`fig2_coverage_performance.png/pdf`)
+- Figure 3: PCG confusion matrix + ROC (`fig3_pcg_performance.png/pdf`)
+
+Individual-level RR/tachogram example figures are excluded from this public repository for privacy reasons.
