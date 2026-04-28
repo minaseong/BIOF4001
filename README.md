@@ -5,7 +5,7 @@ This repository provides a **reproducible analysis workflow** for a smartphone-r
 The repo is designed for **privacy-preserving sharing**: it contains code, aggregate results, and aggregate reporting figures, while the underlying clinical dataset remains **controlled-access**.
 
 ## Research question
-Can a smartphone PCG pipeline provide useful AF vs sinus rhythm (SR) discrimination, and how does its **coverage** (ability to return an AF/SR classification vs OA/UI/Missing) compare with FDA-cleared comparator devices (Kardia single‑lead ECG and FibriCheck PPG)?
+Can a smartphone PCG pipeline provide useful AF vs sinus rhythm (SR) discrimination, and how does its **coverage** (ability to return an AF/SR classification vs OA/UI/Missing) compare with comparator devices (Kardia single‑lead ECG and FibriCheck PPG)?
 
 ## What this repo includes
 - Core pipeline modules (`src/`): preprocessing, clean-segment selection, RR feature extraction, RR‑feature RandomForest training with out‑of‑fold (OOF) evaluation, and diagnostic metric computation.
@@ -32,7 +32,6 @@ scripts/             # template scripts (use placeholders for controlled-access 
 notebooks/           # reproducible aggregate reporting notebooks
 figures/
   main/              # aggregate reporting figures (included)
-  methodology/       # placeholders only (signal-derived figures excluded)
 results/             # aggregate, non-sensitive outputs
 docs/                # methods summary, figure captions, claims audit
 legacy/previous_submission/  # archived previous code (sanitized)
@@ -76,7 +75,11 @@ bash scripts/run_rr_pipeline.sh
 ```
 
 ## Reproducing aggregate reporting figures (no controlled-access data required)
+
+
+Note: The public aggregate tables do not contain participant-level AF probability scores, so an ROC curve cannot be regenerated exactly from public files alone. The notebook reproduces Figure 2 and an aggregate confusion-matrix version of Figure 3.
 - Open and run: `notebooks/01_reproduce_aggregate_figures.ipynb`
+- The notebook also contains an optional protected-local section for methodology plots; it is skipped by default and does not save signal-derived figures.
 - Inputs: aggregate tables under `results/` (e.g., `results/final_matched_metrics_table.csv`)
 - Outputs: regenerated figures may be written locally (do not commit generated artifacts).
 

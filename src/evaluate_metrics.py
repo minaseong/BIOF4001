@@ -4,8 +4,6 @@ Purpose
 -------
 Compute matched-cohort diagnostic performance and coverage metrics.
 
-Why this file exists
---------------------
 For AF screening, it is essential to report *both*:
 
 1) diagnostic performance when a method provides an AF/SR classification, and
@@ -97,6 +95,43 @@ def compute_binary_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> BinaryMetr
     return BinaryMetrics(tp, fp, tn, fn, sens, spec, acc, ppv, npv, f1)
 
 
+def compute_roc_curve(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """
+    Compute ROC curve points and AUC for binary classification.
+
+    Parameters
+    ----------
+    y_true
+        Binary ground-truth labels encoded as 0/1 (0=negative, 1=positive).
+        In this project: 0 = SR, 1 = AF.
+    y_score
+        Continuous scores/probabilities for the positive class (AF).
+
+    Returns
+    -------
+    fpr, tpr, thresholds, auc
+        False-positive rate array, true-positive rate array, thresholds array,
+        and scalar AUC.
+
+    Notes
+    -----
+    The public GitHub repository does not include participant-level probability
+    scores. This helper is intended for *protected-local* runs where such
+    probabilities are available.
+    """
+
+    from sklearn.metrics import auc as _auc
+    from sklearn.metrics import roc_curve as _roc_curve
+
+    y_true = np.asarray(y_true, dtype=int)
+    y_score = np.asarray(y_score, dtype=float)
+    fpr, tpr, thresholds = _roc_curve(y_true, y_score)
+    return fpr, tpr, thresholds, float(_auc(fpr, tpr))
+
+
 def evaluate_method_vs_ecg12(
     df: pd.DataFrame,
     *,
@@ -165,3 +200,193 @@ def evaluate_method_vs_ecg12(
         out.update({"sensitivity": float("nan"), "specificity": float("nan"), "accuracy": float("nan"), "PPV": float("nan"), "NPV": float("nan"), "F1": float("nan"), "AUC": float("nan")})
 
     return out
+
+def confusion_matrix_from_counts(tp: int, fp: int, tn: int, fn: int) -> np.ndarray:
+    """Construct a 2×2 confusion matrix from TP/FP/TN/FN counts.
+
+    Parameters
+    ----------
+    tp, fp, tn, fn
+        Standard binary confusion counts where the positive class is AF.
+
+    Returns
+    -------
+    cm
+        A 2×2 matrix with rows = ECG12 reference [SR, AF] and
+        columns = predicted [SR, AF]::
+
+            [[TN, FP],
+             [FN, TP]]
+
+    Notes
+    -----
+    This orientation matches the dissertation reporting convention:
+    - Reference (rows): SR then AF
+    - Prediction (cols): SR then AF
+    """
+
+    return np.asarray([[int(tn), int(fp)], [int(fn), int(tp)]], dtype=int)
+
+
+def confusion_matrix_from_metrics_row(row: pd.Series | dict[str, Any]) -> np.ndarray:
+    """Build a 2×2 confusion matrix from one metrics-table row.
+
+    Parameters
+    ----------
+    row
+        A row containing integer columns: `tp`, `fp`, `tn`, `fn`.
+
+    Returns
+    -------
+    cm
+        2×2 confusion matrix with rows = reference [SR, AF] and
+        cols = predicted [SR, AF].
+
+    Raises
+    ------
+    ValueError
+        If required count columns are missing.
+    """
+
+    if isinstance(row, dict):
+        row = pd.Series(row)
+
+    required = ["tp", "fp", "tn", "fn"]
+    missing = [c for c in required if c not in row.index]
+    if missing:
+        raise ValueError(
+            "Cannot regenerate confusion matrix: metrics row is missing count columns "
+            f"{missing}. Add aggregate tp/fp/tn/fn columns to the metrics table."
+        )
+
+    tp = int(row["tp"])
+    fp = int(row["fp"])
+    tn = int(row["tn"])
+    fn = int(row["fn"])
+    return confusion_matrix_from_counts(tp=tp, fp=fp, tn=tn, fn=fn)
+
+
+def validate_metric_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Validate an aggregate metrics table.
+
+    This is used by the public notebook to ensure the included aggregate results
+    are self-consistent before plotting.
+
+    Validation checks
+    -----------------
+    - Required columns exist.
+    - For each method: n_classified_AF_SR + n_OA + n_UI + n_missing == n_ref.
+    - Method names are present and non-empty.
+
+    Parameters
+    ----------
+    df
+        Metrics table loaded from CSV.
+
+    Returns
+    -------
+    df
+        The same dataframe (copied) after validation.
+
+    Raises
+    ------
+    ValueError
+        If the table is missing required columns or contains inconsistent counts.
+    """
+
+    required_cols = [
+        "method",
+        "n_ref",
+        "n_classified_AF_SR",
+        "n_OA",
+        "n_UI",
+        "n_missing",
+        "classified_rate",
+        "OA_rate",
+        "UI_rate",
+        "missing_rate",
+        "sensitivity",
+        "specificity",
+        "accuracy",
+        "PPV",
+        "NPV",
+    ]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Metrics table is missing required columns: {missing}")
+
+    out = df.copy()
+    if out["method"].isna().any() or (out["method"].astype(str).str.strip() == "").any():
+        raise ValueError("Metrics table contains empty method names.")
+
+    # Count consistency
+    for _, r in out.iterrows():
+        total = int(r["n_classified_AF_SR"]) + int(r["n_OA"]) + int(r["n_UI"]) + int(r["n_missing"])
+        if total != int(r["n_ref"]):
+            raise ValueError(f"Count mismatch for {r['method']}: {total} != {int(r['n_ref'])}")
+
+        # Optional confusion-count consistency:
+        # If tp/fp/tn/fn are present and all non-null, validate their sum.
+        has_counts = all(c in out.columns for c in ["tp", "fp", "tn", "fn"])
+        if has_counts:
+            vals = [r.get("tp"), r.get("fp"), r.get("tn"), r.get("fn")]
+            if all(pd.notna(v) for v in vals):
+                cm_total = int(float(r["tp"]) + float(r["fp"]) + float(r["tn"]) + float(r["fn"]))
+                expected = int(r["n_classified_AF_SR"])
+                if cm_total != expected:
+                    raise ValueError(f"Confusion-count mismatch for {r['method']}: {cm_total} != {expected}")
+
+    return out
+
+
+def compute_method_metrics_table(
+    df: pd.DataFrame,
+    *,
+    methods: list[dict[str, str]],
+    reference_col: str = "ecg12_4class",
+) -> pd.DataFrame:
+    """Compute a metrics table for multiple methods against an ECG12 reference.
+
+    This helper is intended for *local / protected-data* usage.
+    Public GitHub does not include participant-level matched tables.
+
+    Parameters
+    ----------
+    df
+        Matched cohort table (participant-level) containing an ECG12 reference
+        and method outputs.
+    methods
+        List of method descriptors with keys:
+        - `method`: display name
+        - `pred_col`: column containing 4-class outputs (AF/SR/OA/UI)
+        - optional `prob_col`: column containing AF probability
+    reference_col
+        Column name for ECG12 reference labels.
+
+    Returns
+    -------
+    table
+        Aggregate metrics table (one row per method).
+
+    Notes
+    -----
+    This function simply loops `evaluate_method_vs_ecg12` over the provided
+    method configurations.
+    """
+
+    if reference_col != "ecg12_4class" and "ecg12_4class" in df.columns and reference_col in df.columns:
+        # keep behaviour explicit; caller should pass correct reference_col
+        pass
+
+    rows: list[dict[str, Any]] = []
+    for m in methods:
+        rows.append(
+            evaluate_method_vs_ecg12(
+                df.rename(columns={reference_col: "ecg12_4class"}) if reference_col != "ecg12_4class" else df,
+                method=m["method"],
+                pred_col=m["pred_col"],
+                prob_col=m.get("prob_col"),
+            )
+        )
+
+    return pd.DataFrame(rows)
