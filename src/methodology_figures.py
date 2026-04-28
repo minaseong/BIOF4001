@@ -505,12 +505,14 @@ def plot_preprocessing_example(
     ax1.set_title("A. Raw smartphone PCG (example window)", loc="left", fontsize=11)
     ax1.set_ylabel("Amplitude")
     ax1.set_xlim(float(t0), float(t1))
+    ax1.grid(False)
 
     ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
     ax2.plot(t_pre, w_pre.samples, lw=0.8, color="#2ca02c")
     ax2.set_title("B. Preprocessed PCG (bandpass + normalization)", loc="left", fontsize=11)
     ax2.set_ylabel("Normalized amplitude")
     ax2.set_xlim(float(t0), float(t1))
+    ax2.grid(False)
 
     ax3 = fig.add_subplot(gs[2, 0], sharex=ax1)
     ax3.plot(t_pre, w_pre.samples, lw=0.8, color="#2ca02c")
@@ -523,6 +525,7 @@ def plot_preprocessing_example(
     ax3.set_ylabel("Normalized amplitude")
     ax3.set_xlim(float(t0), float(t1))
     ax3.legend(loc="upper right", frameon=False, fontsize=9, ncols=2)
+    ax3.grid(False)
 
     fig.tight_layout()
     return fig
@@ -638,6 +641,7 @@ def plot_s1s2_annotation_example(
     ax.set_title("S1/S2 annotation example", fontsize=11)
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Normalized amplitude')
+    ax.grid(False)
 
     # Legend (compact, above the plot)
     if poor_any:
