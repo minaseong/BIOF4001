@@ -14,7 +14,7 @@ This module provides the end-to-end training logic:
 - select an analyzable (clean) segment per participant
 - extract RR features
 - train a RandomForest model (class_weight balanced)
-- generate out-of-fold predictions for honest internal evaluation
+- generate out-of-fold predictions for less-biased internal evaluation
 
 Inputs
 ------
@@ -134,11 +134,11 @@ def select_first_interpretable_attempt(
                 break
         if chosen is None:
             # keep provenance: first file if exists
-            r0 = dict(g.iloc[0]) if len(g) else {"participant_id": pid}
-            r0["selected"] = False
-            r0["clean_count"] = 0
-            r0["clean_best_duration_s"] = 0.0
-            chosen = r0
+            fallback_row = dict(g.iloc[0]) if len(g) else {"participant_id": pid}
+            fallback_row["selected"] = False
+            fallback_row["clean_count"] = 0
+            fallback_row["clean_best_duration_s"] = 0.0
+            chosen = fallback_row
         out_rows.append(chosen)
     return pd.DataFrame(out_rows)
 
@@ -300,15 +300,15 @@ def main() -> int:
     trainable[["participant_id", "ecg12_4class", "pcg_paf_oof", "pcg_pred_oof"]].to_csv(out_dir / "oof_predictions.csv", index=False)
 
     # full predictions for all participants with features
-    all_ok = merged.copy()
-    all_ok["rr_n"] = pd.to_numeric(all_ok["rr_n"], errors="coerce").fillna(0.0)
-    all_ok = all_ok[all_ok["rr_n"].astype(float) >= float(rr_cfg.min_rr)].copy()
-    if len(all_ok):
-        X_all = all_ok[feature_cols].astype(float).to_numpy()
+    eligible_for_full_predictions = merged.copy()
+    eligible_for_full_predictions["rr_n"] = pd.to_numeric(eligible_for_full_predictions["rr_n"], errors="coerce").fillna(0.0)
+    eligible_for_full_predictions = eligible_for_full_predictions[eligible_for_full_predictions["rr_n"].astype(float) >= float(rr_cfg.min_rr)].copy()
+    if len(eligible_for_full_predictions):
+        X_all = eligible_for_full_predictions[feature_cols].astype(float).to_numpy()
         paf_full = clf.predict_proba(X_all)[:, 1].astype(float)
-        all_ok["pcg_paf_full"] = paf_full
-        all_ok["pcg_pred_full"] = [to_label(p) for p in paf_full.tolist()]
-        all_ok[["participant_id", "pcg_paf_full", "pcg_pred_full"]].to_csv(out_dir / "full_predictions.csv", index=False)
+        eligible_for_full_predictions["pcg_paf_full"] = paf_full
+        eligible_for_full_predictions["pcg_pred_full"] = [to_label(p) for p in paf_full.tolist()]
+        eligible_for_full_predictions[["participant_id", "pcg_paf_full", "pcg_pred_full"]].to_csv(out_dir / "full_predictions.csv", index=False)
     else:
         pd.DataFrame(columns=["participant_id", "pcg_paf_full", "pcg_pred_full"]).to_csv(out_dir / "full_predictions.csv", index=False)
 

@@ -374,15 +374,12 @@ def compute_method_metrics_table(
     method configurations.
     """
 
-    if reference_col != "ecg12_4class" and "ecg12_4class" in df.columns and reference_col in df.columns:
-        # keep behaviour explicit; caller should pass correct reference_col
-        pass
-
     rows: list[dict[str, Any]] = []
+    eval_df = df.rename(columns={reference_col: "ecg12_4class"}) if reference_col != "ecg12_4class" else df
     for m in methods:
         rows.append(
             evaluate_method_vs_ecg12(
-                df.rename(columns={reference_col: "ecg12_4class"}) if reference_col != "ecg12_4class" else df,
+                eval_df,
                 method=m["method"],
                 pred_col=m["pred_col"],
                 prob_col=m.get("prob_col"),

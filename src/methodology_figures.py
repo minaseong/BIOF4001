@@ -177,12 +177,14 @@ def _infer_columns(df: pd.DataFrame) -> dict[str, str]:
 
 
 def _infer_key_columns(df: pd.DataFrame) -> dict[str, str]:
-    """Infer likely key CSV columns mapping file id to participant id.
+    """Infer likely key CSV columns mapping file id to participant id or filename.
 
     Returns
     -------
     mapping
-        Dict with keys: participant_id, file_id.
+        Dict with keys:
+        - always: `file_id`
+        - plus either: `participant_id` and/or `filename`
     """
 
     cols = {c.lower(): c for c in df.columns}
@@ -194,13 +196,46 @@ def _infer_key_columns(df: pd.DataFrame) -> dict[str, str]:
         return None
 
     participant_id = pick(['participantid', 'participant_id', 'pid', 'participant'])
-    file_id = pick(['fileid', 'file_id', 'file', 'recording', 'recording_id'])
+    filename = pick(['filename', 'file_name', 'name', 'wav'])
+    file_id = pick(['fileid', 'file_id', 'id', 'file', 'recording', 'recording_id'])
 
-    missing = [k for k, v in {'participant_id': participant_id, 'file_id': file_id}.items() if v is None]
-    if missing:
-        raise ValueError(f'Cannot infer key columns {missing}. Found columns: {list(df.columns)}')
+    if file_id is None:
+        raise ValueError(f"Cannot infer key columns ['file_id']. Found columns: {list(df.columns)}")
+    if participant_id is None and filename is None:
+        raise ValueError(
+            "Cannot infer key columns: need either a participant id column or a filename column "
+            f"(columns={list(df.columns)})."
+        )
 
-    return {'participant_id': participant_id, 'file_id': file_id}
+    out = {'file_id': file_id}
+    if participant_id is not None:
+        out['participant_id'] = participant_id
+    if filename is not None:
+        out['filename'] = filename
+    return out
+
+
+def _read_csv_light(path: str | Path, *, wanted: set[str]) -> pd.DataFrame:
+    """Read a CSV selecting only a small set of columns (best-effort).
+
+    This is important for backend exports that may include very large columns
+    (e.g., waveform arrays) that are not needed for plotting.
+    """
+
+    p = Path(path)
+    # Read header first to decide `usecols`.
+    header = pd.read_csv(p, nrows=0, encoding="utf-8-sig")
+    cols = header.columns.tolist()
+    usecols = [c for c in cols if c in wanted or c.lower() in {w.lower() for w in wanted}]
+    if usecols:
+        return pd.read_csv(p, encoding="utf-8-sig", usecols=usecols)
+    return pd.read_csv(p, encoding="utf-8-sig")
+
+
+def _parse_timestamp_series(s: pd.Series) -> pd.Series:
+    """Parse timestamp strings into pandas datetimes (NaT on failure)."""
+
+    return pd.to_datetime(s, errors="coerce", utc=False)
 
 
 def load_annotation_payload_for_participant(
@@ -208,6 +243,7 @@ def load_annotation_payload_for_participant(
     key_csv: str | Path,
     *,
     participant_id: str | int,
+    filename: str | None = None,
 ) -> dict[str, list[dict[str, float]]]:
     """Load annotation intervals for one participant and convert to a payload dict.
 
@@ -219,6 +255,10 @@ def load_annotation_payload_for_participant(
         Path to key CSV mapping file ids to participant ids.
     participant_id
         Participant identifier used in the key CSV.
+    filename
+        Optional recording filename (e.g., `4023_iData4023M.wav`). If provided
+        and the key CSV contains a filename column, this is used to select the
+        correct fileId deterministically.
 
     Returns
     -------
@@ -233,15 +273,36 @@ def load_annotation_payload_for_participant(
     pass a pre-parsed payload directly to the plotting function.
     """
 
-    ann = pd.read_csv(annotation_csv)
-    key = pd.read_csv(key_csv)
+    # Read only lightweight columns if possible (backend exports can contain
+    # huge waveform arrays not needed for plotting).
+    ann = _read_csv_light(Path(annotation_csv), wanted={"id", "fileId", "userId", "segments", "updatedAt", "createdAt", "segment", "start", "end"})
+    key = _read_csv_light(Path(key_csv), wanted={"id", "fileId", "filename", "participantId", "participant_id", "createdAt"})
 
     key_cols = _infer_key_columns(key)
 
     pid = str(participant_id)
-    file_ids = key[key[key_cols['participant_id']].astype(str) == pid][key_cols['file_id']].astype(str).unique().tolist()
+    file_ids: list[str] = []
+
+    if "participant_id" in key_cols:
+        file_ids = (
+            key[key[key_cols["participant_id"]].astype(str) == pid][key_cols["file_id"]]
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+    if not file_ids and "filename" in key_cols:
+        fcol = key_cols["filename"]
+        fidcol = key_cols["file_id"]
+        if filename:
+            match = key[key[fcol].astype(str) == str(filename)]
+        else:
+            # Fallback: match any filename starting with "<pid>_"
+            match = key[key[fcol].astype(str).str.startswith(f"{pid}_", na=False)]
+        file_ids = match[fidcol].astype(str).unique().tolist()
+
     if not file_ids:
-        raise ValueError(f'No file ids found for participant_id={pid} in key CSV.')
+        raise ValueError(f"No file ids found for participant_id={pid} (filename={filename!r}) in key CSV.")
 
     payload: dict[str, list[dict[str, float]]] = {"S1": [], "S2": [], "poor": [], "extremely_poor": []}
 
@@ -264,6 +325,17 @@ def load_annotation_payload_for_participant(
         if sub.empty:
             raise ValueError(f'No annotation rows found for participant_id={pid} (file_ids={file_ids}).')
 
+        # If multiple rows exist for the same fileId, keep the latest row.
+        if "updatedAt" in sub.columns or "createdAt" in sub.columns:
+            ts = _parse_timestamp_series(sub["updatedAt"]) if "updatedAt" in sub.columns else pd.Series([pd.NaT] * len(sub))
+            if ts.isna().all() and "createdAt" in sub.columns:
+                ts = _parse_timestamp_series(sub["createdAt"])
+            sub["_ts"] = ts
+            # Prefer latest overall; if multiple fileIds are present, latest per fileId is fine,
+            # but for plotting we just take the newest row.
+            sub = sub.sort_values(["_ts"], ascending=True)
+            sub = sub.tail(1).copy()
+
         def _pick_key(d: dict[str, Any], options: list[str]) -> Any:
             for o in options:
                 for k in (o, o.lower(), o.upper()):
@@ -277,10 +349,19 @@ def load_annotation_payload_for_participant(
             if isinstance(cell, list):
                 return [x for x in cell if isinstance(x, dict)]
             if isinstance(cell, dict):
+                # Variant A: {"segments": [ ... ]}
                 inner = cell.get("segments") if "segments" in cell else None
                 if isinstance(inner, list):
                     return [x for x in inner if isinstance(x, dict)]
-                return []
+
+                # Variant B (observed in backend export): {"S1":[{start,end},...], "S2":[...], "poor":[...], ...}
+                flattened: list[dict[str, Any]] = []
+                for k, v in cell.items():
+                    if isinstance(v, list) and k is not None:
+                        for item in v:
+                            if isinstance(item, dict):
+                                flattened.append({"segment": str(k), **item})
+                return flattened
             if isinstance(cell, str):
                 s = cell.strip()
                 if not s:
@@ -348,8 +429,9 @@ def plot_preprocessing_example(
     preprocessed_wav: str | Path,
     start_s: float,
     duration_s: float,
+    payload: dict[str, list[dict[str, float]]] | None = None,
 ):
-    """Plot raw vs preprocessed waveform for a short window.
+    """Plot raw vs preprocessed waveform for a short window (Figure M1-style).
 
     Parameters
     ----------
@@ -373,22 +455,74 @@ def plot_preprocessing_example(
 
     import matplotlib.pyplot as plt
 
-    w_raw = slice_waveform(load_wav(raw_wav), start_s=start_s, duration_s=duration_s)
-    w_pre = slice_waveform(load_wav(preprocessed_wav), start_s=start_s, duration_s=duration_s)
+    t0 = float(start_s)
+    t1 = float(start_s) + float(duration_s)
 
-    t_raw = np.arange(w_raw.samples.size) / float(w_raw.fs)
-    t_pre = np.arange(w_pre.samples.size) / float(w_pre.fs)
+    w_raw = slice_waveform(load_wav(raw_wav), start_s=t0, duration_s=duration_s)
+    w_pre = slice_waveform(load_wav(preprocessed_wav), start_s=t0, duration_s=duration_s)
 
-    fig, axes = plt.subplots(2, 1, figsize=(10.5, 4.8), sharex=False)
-    axes[0].plot(t_raw, w_raw.samples, lw=0.8)
-    axes[0].set_title('Raw smartphone PCG (example window)')
-    axes[0].set_xlabel('Time (s)')
-    axes[0].set_ylabel('Amplitude')
+    t_raw = np.arange(w_raw.samples.size, dtype=float) / float(w_raw.fs) + t0
+    t_pre = np.arange(w_pre.samples.size, dtype=float) / float(w_pre.fs) + t0
 
-    axes[1].plot(t_pre, w_pre.samples, lw=0.8)
-    axes[1].set_title('Preprocessed PCG (example window)')
-    axes[1].set_xlabel('Time (s)')
-    axes[1].set_ylabel('Normalized amplitude')
+    def _intervals(key: str) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        if not payload:
+            return out
+        for seg in (payload.get(key) or []):
+            try:
+                a = float(seg.get("start"))
+                b = float(seg.get("end"))
+            except Exception:
+                continue
+            if np.isfinite(a) and np.isfinite(b) and b > a:
+                out.append((a, b))
+        out.sort()
+        return out
+
+    def _spans_in_window(ints: list[tuple[float, float]], a: float, b: float) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for x0, x1 in ints:
+            y0, y1 = max(float(a), float(x0)), min(float(b), float(x1))
+            if y1 > y0:
+                out.append((y0, y1))
+        return out
+
+    def _draw_interval_spans(ax: Any, *, spans: list[tuple[float, float]], color: str, alpha: float, label: str) -> None:
+        if not spans:
+            return
+        for a, b in spans:
+            ax.axvspan(float(a), float(b), color=color, alpha=float(alpha), lw=0)
+        ax.plot([], [], color=color, lw=6.0, alpha=float(alpha), label=label)
+
+    s1_color = "#d62728"  # red
+    s2_color = "#1f77b4"  # blue
+
+    fig = plt.figure(figsize=(10.5, 6.2))
+    gs = fig.add_gridspec(3, 1, hspace=0.35)
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.plot(t_raw, w_raw.samples, lw=0.8, color="#1f77b4")
+    ax1.set_title("A. Raw smartphone PCG (example window)", loc="left", fontsize=11)
+    ax1.set_ylabel("Amplitude")
+    ax1.set_xlim(float(t0), float(t1))
+
+    ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
+    ax2.plot(t_pre, w_pre.samples, lw=0.8, color="#2ca02c")
+    ax2.set_title("B. Preprocessed PCG (bandpass + normalization)", loc="left", fontsize=11)
+    ax2.set_ylabel("Normalized amplitude")
+    ax2.set_xlim(float(t0), float(t1))
+
+    ax3 = fig.add_subplot(gs[2, 0], sharex=ax1)
+    ax3.plot(t_pre, w_pre.samples, lw=0.8, color="#2ca02c")
+    s1_spans = _spans_in_window(_intervals("S1"), float(t0), float(t1))
+    s2_spans = _spans_in_window(_intervals("S2"), float(t0), float(t1))
+    _draw_interval_spans(ax3, spans=s1_spans, color=s1_color, alpha=0.14, label="S1")
+    _draw_interval_spans(ax3, spans=s2_spans, color=s2_color, alpha=0.14, label="S2")
+    ax3.set_title("C. Clean segment for RR extraction (S1/S2 markers)", loc="left", fontsize=11)
+    ax3.set_xlabel("Time (s)")
+    ax3.set_ylabel("Normalized amplitude")
+    ax3.set_xlim(float(t0), float(t1))
+    ax3.legend(loc="upper right", frameon=False, fontsize=9, ncols=2)
 
     fig.tight_layout()
     return fig
@@ -429,60 +563,94 @@ def plot_s1s2_annotation_example(
     w = slice_waveform(load_wav(preprocessed_wav), start_s=start_s, duration_s=duration_s)
     t = np.arange(w.samples.size) / float(w.fs) + float(start_s)
 
-    fig, ax = plt.subplots(1, 1, figsize=(10.5, 3.8))
+    fig, ax = plt.subplots(1, 1, figsize=(10.5, 3.6))
 
     a = float(start_s)
     b = float(start_s) + float(duration_s)
 
-    # Background: poor / extremely poor shading behind everything else.
-    for key, alpha in [("poor", 0.22), ("extremely_poor", 0.35)]:
-        for seg in payload.get(key) or []:
+    def _intervals(key: str) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for seg in (payload.get(key) or []):
             try:
-                s0 = float(seg.get('start'))
-                s1 = float(seg.get('end'))
+                x0 = float(seg.get("start"))
+                x1 = float(seg.get("end"))
             except Exception:
                 continue
-            if s1 <= a or s0 >= b:
+            if np.isfinite(x0) and np.isfinite(x1) and x1 > x0:
+                out.append((x0, x1))
+        out.sort()
+        return out
+
+    def _spans_in_window(ints: list[tuple[float, float]], x0: float, x1: float) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for a0, a1 in ints:
+            y0, y1 = max(float(x0), float(a0)), min(float(x1), float(a1))
+            if y1 > y0:
+                out.append((y0, y1))
+        return out
+
+    def _draw_interval_spans(ax: Any, *, spans: list[tuple[float, float]], color: str, alpha: float, label: str) -> None:
+        if not spans:
+            return
+        for x0, x1 in spans:
+            ax.axvspan(float(x0), float(x1), color=color, alpha=float(alpha), lw=0)
+        ax.plot([], [], color=color, lw=6.0, alpha=float(alpha), label=label)
+
+    def _shrink_spans(
+        spans: list[tuple[float, float]],
+        *,
+        shrink: float = 0.7,
+        min_width_s: float = 0.02,
+    ) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for x0, x1 in spans:
+            x0 = float(x0)
+            x1 = float(x1)
+            if not (np.isfinite(x0) and np.isfinite(x1)) or x1 <= x0:
                 continue
-            ax.axvspan(max(a, s0), min(b, s1), color='#bdbdbd', alpha=alpha, zorder=0)
+            mid = 0.5 * (x0 + x1)
+            w = max(min_width_s, (x1 - x0) * float(shrink))
+            out.append((mid - 0.5 * w, mid + 0.5 * w))
+        return out
+
+    # Poor / extremely poor shading behind everything else.
+    poor_any = False
+    for x0, x1 in _intervals("poor"):
+        y0, y1 = max(x0, a), min(x1, b)
+        if y1 > y0:
+            poor_any = True
+            ax.axvspan(y0, y1, color="0.86", alpha=0.18, lw=0, zorder=0)
+    for x0, x1 in _intervals("extremely_poor"):
+        y0, y1 = max(x0, a), min(x1, b)
+        if y1 > y0:
+            poor_any = True
+            ax.axvspan(y0, y1, color="0.78", alpha=0.30, lw=0, zorder=0)
 
     # Waveform
-    ax.plot(t, w.samples, lw=0.8, color='#1f77b4', zorder=2)
+    ax.plot(t, w.samples, lw=0.9, color="#2ca02c", zorder=2)
 
-    # S1/S2 bands (drawn above grey background, below waveform markers)
-    for seg in payload.get('S1') or []:
-        try:
-            s0 = float(seg.get('start'))
-            s1 = float(seg.get('end'))
-        except Exception:
-            continue
-        if s1 <= a or s0 >= b:
-            continue
-        ax.axvspan(max(a, s0), min(b, s1), color='#ff6b6b', alpha=0.25, zorder=1)
+    # S1/S2 as GUI-like highlighted bands (slightly narrowed for readability).
+    s1_spans = _shrink_spans(_spans_in_window(_intervals("S1"), a, b), shrink=0.7, min_width_s=0.02)
+    s2_spans = _shrink_spans(_spans_in_window(_intervals("S2"), a, b), shrink=0.7, min_width_s=0.02)
+    _draw_interval_spans(ax, spans=s1_spans, color="#e15759", alpha=0.16, label="S1")  # soft pink/red
+    _draw_interval_spans(ax, spans=s2_spans, color="#1f77b4", alpha=0.16, label="S2")  # soft blue
 
-    for seg in payload.get('S2') or []:
-        try:
-            s0 = float(seg.get('start'))
-            s1 = float(seg.get('end'))
-        except Exception:
-            continue
-        if s1 <= a or s0 >= b:
-            continue
-        ax.axvspan(max(a, s0), min(b, s1), color='#4dabf7', alpha=0.25, zorder=1)
-
-    ax.set_title('S1/S2 annotation and quality labeling (example window)')
+    ax.set_title("S1/S2 annotation example", fontsize=11)
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Normalized amplitude')
 
-    # Compact legend (no clean-segment indicator by default)
-    from matplotlib.patches import Patch
-
-    handles = [
-        Patch(facecolor='#bdbdbd', edgecolor='none', alpha=0.22, label='Poor/extremely poor'),
-        Patch(facecolor='#ff6b6b', edgecolor='none', alpha=0.25, label='S1'),
-        Patch(facecolor='#4dabf7', edgecolor='none', alpha=0.25, label='S2'),
-    ]
-    ax.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=3, frameon=False)
+    # Legend (compact, above the plot)
+    if poor_any:
+        ax.plot([], [], color="0.82", lw=6.0, alpha=0.22, label="Poor/extremely poor")
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.22),
+        frameon=False,
+        fontsize=8,
+        ncols=3,
+        columnspacing=1.3,
+        handlelength=2.4,
+    )
 
     fig.tight_layout()
     return fig
