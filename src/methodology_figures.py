@@ -497,20 +497,22 @@ def plot_preprocessing_example(
     s1_color = "#d62728"  # red
     s2_color = "#1f77b4"  # blue
 
-    fig = plt.figure(figsize=(10.5, 6.2))
-    gs = fig.add_gridspec(3, 1, hspace=0.35)
+    fig = plt.figure(figsize=(12.0, 8.6))
+    gs = fig.add_gridspec(3, 1, hspace=0.72)
 
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.plot(t_raw, w_raw.samples, lw=0.8, color="#1f77b4")
-    ax1.set_title("A. Raw smartphone PCG (example window)", loc="left", fontsize=11)
-    ax1.set_ylabel("Amplitude")
+    ax1.set_title("A. Raw smartphone PCG (example window)", loc="left", fontsize=16, pad=10)
+    ax1.set_ylabel("Amplitude", fontsize=15)
+    ax1.tick_params(axis="both", labelsize=12)
     ax1.set_xlim(float(t0), float(t1))
     ax1.grid(False)
 
     ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
     ax2.plot(t_pre, w_pre.samples, lw=0.8, color="#2ca02c")
-    ax2.set_title("B. Preprocessed PCG (bandpass + normalization)", loc="left", fontsize=11)
-    ax2.set_ylabel("Normalized amplitude")
+    ax2.set_title("B. Preprocessed PCG (bandpass + normalization)", loc="left", fontsize=16, pad=10)
+    ax2.set_ylabel("Normalized amplitude", fontsize=15)
+    ax2.tick_params(axis="both", labelsize=12)
     ax2.set_xlim(float(t0), float(t1))
     ax2.grid(False)
 
@@ -520,14 +522,15 @@ def plot_preprocessing_example(
     s2_spans = _spans_in_window(_intervals("S2"), float(t0), float(t1))
     _draw_interval_spans(ax3, spans=s1_spans, color=s1_color, alpha=0.14, label="S1")
     _draw_interval_spans(ax3, spans=s2_spans, color=s2_color, alpha=0.14, label="S2")
-    ax3.set_title("C. Clean segment for RR extraction (S1/S2 markers)", loc="left", fontsize=11)
-    ax3.set_xlabel("Time (s)")
-    ax3.set_ylabel("Normalized amplitude")
+    ax3.set_title("C. Clean segment for RR extraction (S1/S2 markers)", loc="left", fontsize=16, pad=10)
+    ax3.set_xlabel("Time (s)", fontsize=15)
+    ax3.set_ylabel("Normalized amplitude", fontsize=15)
+    ax3.tick_params(axis="both", labelsize=12)
     ax3.set_xlim(float(t0), float(t1))
-    ax3.legend(loc="upper right", frameon=False, fontsize=9, ncols=2)
+    ax3.legend(loc="upper right", frameon=False, fontsize=11, ncols=2)
     ax3.grid(False)
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.10, right=0.98, top=0.97, bottom=0.09, hspace=0.72)
     return fig
 
 
@@ -564,12 +567,14 @@ def plot_s1s2_annotation_example(
     import matplotlib.pyplot as plt
 
     w = slice_waveform(load_wav(preprocessed_wav), start_s=start_s, duration_s=duration_s)
+    if w.samples.size == 0:
+        raise ValueError("Selected M2 time window produced an empty waveform slice.")
     t = np.arange(w.samples.size) / float(w.fs) + float(start_s)
 
-    fig, ax = plt.subplots(1, 1, figsize=(10.5, 3.6))
+    fig, ax = plt.subplots(1, 1, figsize=(12.0, 4.2))
 
-    a = float(start_s)
-    b = float(start_s) + float(duration_s)
+    a = float(t[0])
+    b = float(t[-1])
 
     def _intervals(key: str) -> list[tuple[float, float]]:
         out: list[tuple[float, float]] = []
@@ -638,9 +643,12 @@ def plot_s1s2_annotation_example(
     _draw_interval_spans(ax, spans=s1_spans, color="#e15759", alpha=0.16, label="S1")  # soft pink/red
     _draw_interval_spans(ax, spans=s2_spans, color="#1f77b4", alpha=0.16, label="S2")  # soft blue
 
-    ax.set_title("S1/S2 annotation example", fontsize=11)
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Normalized amplitude')
+    ax.set_title("S1/S2 annotation example", fontsize=15, pad=6)
+    ax.set_xlabel('Time (s)', fontsize=12)
+    ax.set_ylabel('Normalized amplitude', fontsize=12)
+    ax.tick_params(axis="both", labelsize=11)
+    ax.set_xlim(a, b)
+    ax.margins(x=0)
     ax.grid(False)
 
     # Legend (compact, above the plot)
@@ -650,13 +658,13 @@ def plot_s1s2_annotation_example(
         loc="upper center",
         bbox_to_anchor=(0.5, 1.22),
         frameon=False,
-        fontsize=8,
+        fontsize=10,
         ncols=3,
         columnspacing=1.3,
         handlelength=2.4,
     )
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.84, bottom=0.18)
     return fig
 
 
