@@ -10,5 +10,5 @@
 
 ## Must not claim
 - PCG replaces 12-lead ECG.
-- PCG is clinically equivalent to FDA-cleared comparator devices.
+- PCG is clinically equivalent to comparator devices.
 - The current system is fully automated end-to-end (annotation dependence).

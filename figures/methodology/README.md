@@ -1,7 +1,12 @@
-# Methodology figures (privacy note)
+# Methodology figures (excluded)
 
-Waveform methodology figures (e.g., raw/preprocessed PCG traces and S1/S2 annotation examples) are excluded from the public repository because they are derived from a **controlled-access clinical PCG dataset**.
+Methodology figures that include **participant-level signal traces** (raw/preprocessed waveforms, S1/S2 annotations, RR examples) are **excluded** from this public repository because they are derived from controlled-access clinical recordings.
 
-Representative methodology examples are included only in the submitted thesis/dissertation.
+The submitted dissertation includes representative methodology examples generated locally from the protected dataset.
 
-To reproduce those figures, you must have local access to the controlled-access dataset and the corresponding annotation exports.
+To regenerate those figures on your own machine (with access to the protected dataset), use:
+
+- `notebooks/01_reproduce_aggregate_figures.ipynb` → **Optional protected-local methodology figures** section
+
+Do not commit any generated signal-derived figures or executed notebooks to a public repository.
+

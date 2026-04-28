@@ -27,6 +27,7 @@ __pycache__/
 # notebook execution artifacts
 notebooks/_executed/
 figures/main/regenerated/
+figures/local_signal_examples/
 
 # credentials
 .env
