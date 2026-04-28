@@ -11,4 +11,10 @@ RUN_DIR="/path/to/output/run_rr"
 
 mkdir -p "$RUN_DIR"
 
-python src/train_rr_classifier.py   --preprocessed-dir "$PREPROCESSED_DIR"   --annotation-csv "$ANNOTATION_CSV"   --annotation-key-csv "$ANNOTATION_KEY_CSV"   --labels-csv "$LABELS_CSV"   --out-dir "$RUN_DIR"   --t-af 0.5
+python src/train_rr_classifier.py \
+  --preprocessed-dir "$PREPROCESSED_DIR" \
+  --annotation-csv "$ANNOTATION_CSV" \
+  --annotation-key-csv "$ANNOTATION_KEY_CSV" \
+  --labels-csv "$LABELS_CSV" \
+  --out-dir "$RUN_DIR" \
+  --t-af 0.5

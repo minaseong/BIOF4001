@@ -196,8 +196,16 @@ def butter_bandpass(lowcut: float, highcut: float, fs: int, order: int) -> tuple
 def preprocess_heart_sound(audio: np.ndarray, sr: int, cfg: PreprocessConfig) -> np.ndarray:
     """Bandpass + peak normalization + mean-centering."""
 
+    audio = np.asarray(audio, dtype=np.float32)
+    if audio.size == 0:
+        return audio
+
     b, a = butter_bandpass(cfg.lowcut_hz, cfg.highcut_hz, sr, cfg.filter_order)
-    filtered = signal.filtfilt(b, a, audio).astype(np.float32)
+    padlen = max(0, 3 * (max(len(a), len(b)) - 1))
+    if audio.size <= padlen:
+        filtered = audio
+    else:
+        filtered = signal.filtfilt(b, a, audio).astype(np.float32)
     normalized = filtered / (np.max(np.abs(filtered)) + 1e-10)
     processed = normalized - float(np.mean(normalized))
     return processed.astype(np.float32)
